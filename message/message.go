@@ -3,6 +3,7 @@ package message
 import (
 	"blockEmulator/core"
 	"blockEmulator/shard"
+	"blockEmulator/utils"
 	"time"
 )
 
@@ -25,6 +26,9 @@ const (
 
 	CBlockInfo MessageType = "BlockInfo"
 	CSeqIDinfo MessageType = "SequenceID"
+
+	// 主分片收到TxReq后下发迁移计划
+	CTxPlanOut MessageType = "TxPlanOut"
 )
 
 var (
@@ -32,6 +36,23 @@ var (
 	// add more types
 	// ...
 )
+
+// 迁移计划结构体
+type MigPlan struct {
+	AccountAddr     utils.Address // 账户地址
+	ReceiverShardID uint64        // 账户所在分片
+}
+
+// 待下发的迁移计划（用在消息处理里面）
+type PlanOut struct {
+	ReqPlanShardID uint64     // 账户目的分片
+	Plans          []*MigPlan // 一组迁移计划
+}
+
+// 待下发的迁移计划（用在消息处理里面）
+type PlanOutMsg struct {
+	PlanOuts PlanOut
+}
 
 type RawMessage struct {
 	Content []byte // the content of raw message, txs and blocks (most cases) included
