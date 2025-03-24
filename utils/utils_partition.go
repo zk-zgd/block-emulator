@@ -17,7 +17,7 @@ func Addr2Shard(addr Address) int {
 	if err != nil {
 		log.Panic(err)
 	}
-	return int(num) % params.ShardNum
+	return int(num) % (params.ShardNum - 1)
 }
 
 // mod method

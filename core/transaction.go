@@ -31,6 +31,9 @@ type Transaction struct {
 	OriginalSender utils.Address
 	FinalRecipient utils.Address
 	RawTxHash      []byte
+
+	// 在Tx_req时使用，用于请求迁移计划
+	Is_Txreq bool
 }
 
 func (tx *Transaction) PrintTx() string {
@@ -88,5 +91,8 @@ func NewTransaction(sender, recipient string, value *big.Int, nonce uint64, prop
 	tx.RawTxHash = nil
 	tx.HasBroker = false
 	tx.SenderIsBroker = false
+	// 初始化为false
+	tx.Is_Txreq = false
+
 	return tx
 }

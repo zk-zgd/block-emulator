@@ -30,7 +30,7 @@ func TestFinalResult(t *testing.T) {
 	}
 
 	// check the result from BlockEmulator
-	for sid := 0; sid < params.ShardNum; sid++ {
+	for sid := 0; sid < params.ShardNum-1; sid++ {
 		mptfp := "../" + params.DatabaseWrite_path + "mptDB/ldb/s" + strconv.FormatUint(uint64(sid), 10) + "/n0"
 		chaindbfp := "../" + params.DatabaseWrite_path + fmt.Sprintf("chainDB/S%d_N%d", sid, 0)
 		aslist := QueryAccountStateList(chaindbfp, mptfp, uint64(sid), 0, accounts)

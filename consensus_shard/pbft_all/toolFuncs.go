@@ -189,3 +189,14 @@ func DeleteElementsInList(list []*core.Transaction, elements []*core.Transaction
 	}
 	return list[:-removedCnt]
 }
+
+// 此处新建一个TXreq交易
+func (p *PbftConsensusNode) CreateTxReq(shardid int) {
+	// 创建一个新的交易
+	txReq := core.NewTransaction(params.SenderAddr[shardid], params.SenderAddr[3], params.Init_Balance, 0, time.Now()) // txReq.TxHash = sha256.Sum256([]byte(fmt.Sprintf("%v", time.Now()))).[:]
+	txReq.Is_Txreq = true
+	hash := sha256.Sum256(txReq.Encode())
+	txReq.TxHash = hash[:]
+	// 添加交易到交易池
+	p.CurChain.Txpool.AddTxs2Pool_Head([]*core.Transaction{txReq})
+}

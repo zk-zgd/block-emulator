@@ -62,7 +62,7 @@ func (rthm *RelayCommitteeModule) txSending(txlist []*core.Transaction) {
 	for idx := 0; idx <= len(txlist); idx++ {
 		if idx > 0 && (idx%params.InjectSpeed == 0 || idx == len(txlist)) {
 			// send to shard
-			for sid := uint64(0); sid < uint64(params.ShardNum); sid++ {
+			for sid := uint64(0); sid < uint64(params.ShardNum-1); sid++ {
 				it := message.InjectTxs{
 					Txs:       sendToShard[sid],
 					ToShardID: sid,

@@ -10,13 +10,14 @@ import (
 var (
 	// The following parameters can be set in main.go.
 	// default values:
-	NodesInShard = 4 // \# of Nodes in a shard.
-	ShardNum     = 4 // \# of shards.
+	NodesInShard = 4                                                                                                                                        // \# of Nodes in a shard.
+	ShardNum     = 4                                                                                                                                        // \# of shards.
+	SenderAddr   = []string{"0000000000000000000000000000", "0000000000000000000000000001", "0000000000000000000000000002", "0000000000000000000000000003"} // The address of the sender. The sender is the node that sends the Txreq.
 )
 
 // consensus layer & output file path
 var (
-	ConsensusMethod = 0 // ConsensusMethod an Integer, which indicates the choice ID of methods / consensuses. Value range: [0, 4), representing [CLPA_Broker, CLPA, Broker, Relay]"
+	ConsensusMethod = 3 // ConsensusMethod an Integer, which indicates the choice ID of methods / consensuses. Value range: [0, 4), representing [CLPA_Broker, CLPA, Broker, Relay]"
 
 	PbftViewChangeTimeOut = 10000 // The view change threshold of pbft. If the process of PBFT is too slow, the view change mechanism will be triggered.
 
