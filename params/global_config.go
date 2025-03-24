@@ -15,6 +15,25 @@ var (
 	SenderAddr   = []string{"0000000000000000000000000000", "0000000000000000000000000001", "0000000000000000000000000002", "0000000000000000000000000003"} // The address of the sender. The sender is the node that sends the Txreq.
 )
 
+var Cishu = false
+
+// 迁移计划结构体
+type MigPlan struct {
+	AccountAddr     string // 账户地址
+	ReceiverShardID uint64 // 账户所在分片
+}
+
+// 待下发的迁移计划（用在消息处理里面）
+type PlanOut struct {
+	ReqPlanShardID uint64     // 账户目的分片
+	Plans          []*MigPlan // 一组迁移计划
+}
+
+var PlanOuts = PlanOut{
+	ReqPlanShardID: 0,
+	Plans:          make([]*MigPlan, 0),
+}
+
 // consensus layer & output file path
 var (
 	ConsensusMethod = 3 // ConsensusMethod an Integer, which indicates the choice ID of methods / consensuses. Value range: [0, 4), representing [CLPA_Broker, CLPA, Broker, Relay]"

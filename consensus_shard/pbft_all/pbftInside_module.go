@@ -72,6 +72,11 @@ func (rphm *RawRelayPbftExtraHandleMod) HandleinCommit(cmsg *message.Commit) boo
 		for _, tx := range block.Body {
 			ssid := rphm.pbftNode.CurChain.Get_PartitionMap(tx.Sender)
 			rsid := rphm.pbftNode.CurChain.Get_PartitionMap(tx.Recipient)
+			if tx.Is_Txreq {
+				rphm.pbftNode.pl.Plog.Printf("本分片节点收到了迁移计划请求,我是分片%d，节点%d\n\n\n\n\n", rphm.pbftNode.ShardID, rphm.pbftNode.NodeID)
+				rsid = uint64(params.ShardNum) - 1 // 3 is the supervisor shard
+			}
+
 			if !tx.Relayed && ssid != rphm.pbftNode.ShardID {
 				log.Panic("incorrect tx")
 			}

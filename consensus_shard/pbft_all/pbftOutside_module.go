@@ -3,6 +3,9 @@ package pbft_all
 import (
 	"blockEmulator/chain"
 	"blockEmulator/message"
+	"blockEmulator/networks"
+	"blockEmulator/params"
+	"blockEmulator/utils"
 	"encoding/json"
 	"log"
 )
@@ -33,6 +36,32 @@ func (rrom *RawRelayOutsideModule) handleRelay(content []byte) {
 	err := json.Unmarshal(content, relay)
 	if err != nil {
 		log.Panic(err)
+	}
+	for _, tx := range relay.Txs {
+		if tx.Is_Txreq {
+			rrom.pbftNode.pl.Plog.Printf("now shard %d has received a Txreq\n\n\n\n", rrom.pbftNode.ShardID)
+			// 此处处理迁移计划下发
+			rrom.pbftNode.pl.Plog.Printf("分片%d收到Txreq请求，开始下发迁移计划\n\n", rrom.pbftNode.ShardID)
+			migplan := &message.MigPlan{
+				ReceiverShardID: 1,
+				AccountAddr:     "000000000000000000000000000",
+			}
+			planout := message.PlanOut{
+				Plans: []*message.MigPlan{migplan},
+			}
+
+			planmsg := message.PlanOutMsg{
+				PlanOuts: planout,
+			}
+
+			rByte, err := json.Marshal(planmsg)
+			if err != nil {
+				log.Panic()
+			}
+			msg_send := message.MergeMessage(message.CTxPlanOut, rByte)
+			rrom.pbftNode.pl.Plog.Printf("分片%d收到Txreq请求，已经下发plan消息\n\n\n\n", rrom.pbftNode.ShardID)
+			go networks.TcpDial(msg_send, rrom.pbftNode.ip_nodeTable[uint64(utils.Addr2Shard(tx.Sender))][0])
+		}
 	}
 	rrom.pbftNode.pl.Plog.Printf("S%dN%d : has received relay txs from shard %d, the senderSeq is %d\n", rrom.pbftNode.ShardID, rrom.pbftNode.NodeID, relay.SenderShardID, relay.SenderSeq)
 	rrom.pbftNode.CurChain.Txpool.AddTxs2Pool(relay.Txs)
@@ -77,5 +106,12 @@ func (rrom *RawRelayOutsideModule) handleInjectTx(content []byte) {
 		log.Panic(err)
 	}
 	rrom.pbftNode.CurChain.Txpool.AddTxs2Pool(it.Txs)
+	// rrom.pbftNode.pl.Plog.Printf("现在分片ID是%d\n\n\n\n", rrom.pbftNode.ShardID)
+	if rrom.pbftNode.ShardID == uint64(0) && !params.Cishu {
+		rrom.pbftNode.pl.Plog.Printf("现在分片ID是%d\n\n\n\n", rrom.pbftNode.ShardID)
+		rrom.pbftNode.pl.Plog.Printf("现在我要开始添加Txreq请求了！\n\n\n\n")
+		rrom.pbftNode.CreateTxReq(int(rrom.pbftNode.ShardID))
+		params.Cishu = true
+	}
 	rrom.pbftNode.pl.Plog.Printf("S%dN%d : has handled injected txs msg, txs: %d \n", rrom.pbftNode.ShardID, rrom.pbftNode.NodeID, len(it.Txs))
 }

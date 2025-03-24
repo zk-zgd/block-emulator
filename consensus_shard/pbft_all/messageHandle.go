@@ -380,3 +380,19 @@ func (p *PbftConsensusNode) handleSendOldSeq(content []byte) {
 
 	p.askForLock.Unlock()
 }
+
+// 接收迁移计划消息函数体
+func (p *PbftConsensusNode) handlePlanout(content []byte) {
+	planout := new(message.PlanOutMsg)
+	err := json.Unmarshal(content, planout)
+	if err != nil {
+		log.Panic()
+	}
+	// fmt.Println("received the planout message")
+	p.pl.Plog.Printf("分片%d已经收到了下发的迁移计划喵，这里准备处理了喵~~\n", p.ShardID)
+	p.pl.Plog.Printf("输出一下迁移计划喵~\n")
+
+	for _, plan := range planout.PlanOuts.Plans {
+		p.pl.Plog.Printf("ReceiverShardID: %d, AccountAddr: %s\n", plan.ReceiverShardID, plan.AccountAddr)
+	}
+}

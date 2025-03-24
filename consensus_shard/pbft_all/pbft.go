@@ -202,6 +202,8 @@ func (p *PbftConsensusNode) handleMessage(msg []byte) {
 	case message.CStop:
 		p.WaitToStop()
 
+	case message.CTxPlanOut:
+		p.handlePlanout(content)
 	// handle the message from outside
 	default:
 		go p.ohm.HandleMessageOutsidePBFT(msgType, content)
