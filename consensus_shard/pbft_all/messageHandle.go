@@ -395,4 +395,22 @@ func (p *PbftConsensusNode) handlePlanout(content []byte) {
 	for _, plan := range planout.PlanOuts.Plans {
 		p.pl.Plog.Printf("ReceiverShardID: %d, AccountAddr: %s\n", plan.ReceiverShardID, plan.AccountAddr)
 	}
+	// 此处创建通知消息
+	p.pl.Plog.Printf("分片%d准备创建迁移计划通知消息\n", p.ShardID)
+	for _, val := range planout.PlanOuts.Plans {
+		p.CreateTxInitInfo(int(p.ShardID), int(val.ReceiverShardID), val.AccountAddr)
+	}
+	p.pl.Plog.Printf("分片%d已经创建迁移计划通知消息完成\n\n\n", p.ShardID)
+}
+
+// 目标分片收到原分片发来的迁移计划通知消息，现在进行消息处理
+func (p *PbftConsensusNode) handleTxinitCreateinfo(content []byte) {
+	createtxinitinfo := new(message.TxinitCreate)
+	err := json.Unmarshal(content, createtxinitinfo)
+	if err != nil {
+		log.Panic()
+	}
+	p.pl.Plog.Printf("目的分片%d已经收到了迁移计划通知消息，这里准备创建替身账户喵~~\n", p.ShardID)
+	p.pl.Plog.Printf("输出一下迁移计划通知消息喵~\n")
+	p.pl.Plog.Printf("TransientTxAddr: %s, Nowtime: %s, SendersharedID: %d\n", createtxinitinfo.TransientTxAddr, createtxinitinfo.Nowtime, createtxinitinfo.SendershardID)
 }

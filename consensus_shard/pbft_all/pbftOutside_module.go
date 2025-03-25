@@ -40,12 +40,31 @@ func (rrom *RawRelayOutsideModule) handleRelay(content []byte) {
 	for _, tx := range relay.Txs {
 		if tx.Is_Txreq {
 			rrom.pbftNode.pl.Plog.Printf("now shard %d has received a Txreq\n\n\n\n", rrom.pbftNode.ShardID)
+			/*
+				if len(rrom.pbftNode.CurChain.FetchAccounts([]string{"32be343b94f860124dc4fee278fdcbd38c102d88"})) == 0 {
+					rrom.pbftNode.pl.Plog.Print("交易还没注入好，你别急\n\n\n")
+				}
+				acstate := rrom.pbftNode.CurChain.FetchAccounts([]string{"32be343b94f860124dc4fee278fdcbd38c102d88"})[0]
+			*/
 			// 此处处理迁移计划下发
 			rrom.pbftNode.pl.Plog.Printf("分片%d收到Txreq请求，开始下发迁移计划\n\n", rrom.pbftNode.ShardID)
 			migplan := &message.MigPlan{
 				ReceiverShardID: 1,
-				AccountAddr:     "000000000000000000000000000",
+				AccountAddr:     "32be343b94f860124dc4fee278fdcbd38c102d88",
+				// 暂时的账户状态
+				/*
+					TransientState: core.AccountState{
+						Nonce:       acstate.Nonce,
+						Balance:     big.NewInt(0),
+						AcAddress:   "32be343b94f860124dc4fee278fdcbd38c102d88",
+						StorageRoot: acstate.StorageRoot,
+						CodeHash:    acstate.CodeHash,
+					},
+				*/
 			}
+			rrom.pbftNode.pl.Plog.Printf("迁移计划已编写好，现在准备发送给原分片喵~\n\n\n")
+			// rrom.pbftNode.pl.Plog.Print(acstate)
+			// rrom.pbftNode.pl.Plog.Print("\n\n\n")
 			planout := message.PlanOut{
 				Plans: []*message.MigPlan{migplan},
 			}

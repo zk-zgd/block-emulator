@@ -10,9 +10,12 @@ import (
 var (
 	// The following parameters can be set in main.go.
 	// default values:
-	NodesInShard = 4                                                                                                                                        // \# of Nodes in a shard.
-	ShardNum     = 4                                                                                                                                        // \# of shards.
-	SenderAddr   = []string{"0000000000000000000000000000", "0000000000000000000000000001", "0000000000000000000000000002", "0000000000000000000000000003"} // The address of the sender. The sender is the node that sends the Txreq.
+	NodesInShard = 4 // \# of Nodes in a shard.
+	ShardNum     = 4 // \# of shards.
+	// txreq专用地址
+	SenderAddr = []string{"0000000000000000000000000000", "0000000000000000000000000001", "0000000000000000000000000002", "0000000000000000000000000003"} // The address of the sender. The sender is the node that sends the Txreq.
+	// TXinit专用地址
+	TxinitSenderAddr = []string{"1000000000000000000000000000", "1000000000000000000000000001", "1000000000000000000000000002", "1000000000000000000000000003"} // The address of the sender. The sender is the node that sends the Txinit.
 )
 
 var Cishu = false

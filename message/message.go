@@ -29,6 +29,8 @@ const (
 
 	// 主分片收到TxReq后下发迁移计划
 	CTxPlanOut MessageType = "TxPlanOut"
+	// 原分片创建TxInit消息头
+	CTxinitCreate MessageType = "TxinitCreate"
 )
 
 var (
@@ -39,14 +41,23 @@ var (
 
 // 迁移计划结构体
 type MigPlan struct {
-	AccountAddr     utils.Address // 账户地址
-	ReceiverShardID uint64        // 账户所在分片
+	AccountAddr     utils.Address     // 账户地址
+	ReceiverShardID uint64            // 账户所在分片
+	TransientState  core.AccountState // 目标分片创建替身账户需要用到的状态
 }
 
 // 待下发的迁移计划（用在消息处理里面）
 type PlanOut struct {
 	ReqPlanShardID uint64     // 账户目的分片
 	Plans          []*MigPlan // 一组迁移计划
+}
+
+// 创建TxInit的消息体
+type TxinitCreate struct {
+	TransientTxAddr  utils.Address     // 过渡账户地址
+	Nowtime          time.Time         // 当前时间
+	SendershardID    uint64            // 发送分片ID
+	MigAccount_State core.AccountState // 迁移账户状态（将用于替身账户的生成）
 }
 
 // 待下发的迁移计划（用在消息处理里面）

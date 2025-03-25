@@ -7,6 +7,7 @@ import (
 	"blockEmulator/networks"
 	"blockEmulator/params"
 	"blockEmulator/shard"
+	"blockEmulator/utils"
 	"crypto/sha256"
 	"encoding/csv"
 	"encoding/json"
@@ -199,4 +200,30 @@ func (p *PbftConsensusNode) CreateTxReq(shardid int) {
 	txReq.TxHash = hash[:]
 	// 添加交易到交易池
 	p.CurChain.Txpool.AddTxs2Pool_Head([]*core.Transaction{txReq})
+}
+
+// 此处由原分片创建一个通知交易，用于通知目标分片迁移计划
+func (p *PbftConsensusNode) CreateTxInitInfo(shardid int, targetShard int, accountaddr utils.Address) {
+	createtxinitinfo := new(message.TxinitCreate)
+	createtxinitinfo.SendershardID = uint64(shardid)
+	accounts := p.CurChain.FetchAccounts([]string{string(accountaddr)})
+	if len(accounts) == 0 {
+		p.pl.Plog.Printf("没有这个账户，返回空值\n\n\n")
+		return
+	}
+	createtxinitinfo.MigAccount_State = *accounts[0]
+	// createtxinitinfo.MigAccount_State = *accounts[0]
+	createtxinitinfo.Nowtime = time.Now()
+	createtxinitinfo.TransientTxAddr = accountaddr
+	p.pl.Plog.Printf("输出一下账户状态喵~\n")
+	p.pl.Plog.Print(createtxinitinfo.MigAccount_State)
+	p.pl.Plog.Print("\n")
+	ctibyte, err := json.Marshal(createtxinitinfo)
+	if err != nil {
+		log.Panic(err)
+	}
+	cmsg := message.MergeMessage(message.CTxinitCreate, ctibyte)
+	// 发送消息
+	p.pl.Plog.Printf("i have send this msg to Desshard :%d\n\n\n\n\n", targetShard)
+	go networks.TcpDial(cmsg, p.ip_nodeTable[uint64(targetShard)][0])
 }

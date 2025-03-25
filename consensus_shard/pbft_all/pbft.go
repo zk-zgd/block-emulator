@@ -201,7 +201,8 @@ func (p *PbftConsensusNode) handleMessage(msg []byte) {
 
 	case message.CStop:
 		p.WaitToStop()
-
+	case message.CTxinitCreate:
+		p.handleTxinitCreateinfo(content)
 	case message.CTxPlanOut:
 		p.handlePlanout(content)
 	// handle the message from outside
