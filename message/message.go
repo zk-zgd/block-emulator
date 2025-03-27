@@ -31,6 +31,9 @@ const (
 	CTxPlanOut MessageType = "TxPlanOut"
 	// 原分片创建TxInit消息头
 	CTxinitCreate MessageType = "TxinitCreate"
+
+	// Txinit中继交易的消息头
+	CTxinitRelyay MessageType = "TxinitRelay"
 )
 
 var (

@@ -25,6 +25,8 @@ func (rrom *RawRelayOutsideModule) HandleMessageOutsidePBFT(msgType message.Mess
 		rrom.handleRelayWithProof(content)
 	case message.CInject:
 		rrom.handleInjectTx(content)
+	case message.CTxinitRelyay:
+		rrom.handleRelayTxInit(content)
 	default:
 	}
 	return true
@@ -100,7 +102,10 @@ func (rrom *RawRelayOutsideModule) handleRelayWithProof(content []byte) {
 	// validate the proofs of txs
 	isAllCorrect := true
 	for i, tx := range rwp.Txs {
-		if ok, _ := chain.TxProofVerify(tx.TxHash, &rwp.TxProofs[i]); !ok {
+		if ok, err := chain.TxProofVerify(tx.TxHash, &rwp.TxProofs[i]); !ok {
+			rrom.pbftNode.pl.Plog.Print("当前的错误是：")
+			rrom.pbftNode.pl.Plog.Println(err)
+			rrom.pbftNode.pl.Plog.Print("\n\n\n")
 			isAllCorrect = false
 			break
 		}
@@ -116,6 +121,38 @@ func (rrom *RawRelayOutsideModule) handleRelayWithProof(content []byte) {
 	rrom.pbftNode.seqIDMap[rwp.SenderShardID] = rwp.SenderSeq
 	rrom.pbftNode.seqMapLock.Unlock()
 	rrom.pbftNode.pl.Plog.Printf("S%dN%d : has handled relay txs msg\n", rrom.pbftNode.ShardID, rrom.pbftNode.NodeID)
+}
+
+// 此处进行relaytxinit消息的处理哦，新增merkle证明捏
+func (rrom *RawRelayOutsideModule) handleRelayTxInit(content []byte) {
+	rwp := new(message.Txinit_Relay)
+	err := json.Unmarshal(content, rwp)
+	if err != nil {
+		log.Panic(err)
+	}
+	rrom.pbftNode.pl.Plog.Printf("S%dN%d : 我收到txinit的中继交易啦，来自 shard %d, the senderSeq is %d\n", rrom.pbftNode.ShardID, rrom.pbftNode.NodeID, rwp.SenderShardID, rwp.SenderSeq)
+	// validate the proofs of txs
+	isAllCorrect := true
+	for i, tx := range rwp.Txs {
+		if ok, errors:= chain.TxInitProofVerify(tx.TxHash, &rwp.TxProofs[i]); !ok {
+			rrom.pbftNode.pl.Plog.Print("当前的错误是：")
+			rrom.pbftNode.pl.Plog.Println(errors)
+			rrom.pbftNode.pl.Plog.Print("\n\n\n")
+			isAllCorrect = false
+			break
+		}
+	}
+	if isAllCorrect {
+		rrom.pbftNode.pl.Plog.Println("All txinit交易的证明proofs are passed.")
+		rrom.pbftNode.CurChain.Txinitpool.AddTxInits2Pool(rwp.Txs)
+	} else {
+		rrom.pbftNode.pl.Plog.Println("Err: txinit的证明wrong proof!")
+	}
+
+	rrom.pbftNode.seqMapLock.Lock()
+	rrom.pbftNode.seqIDMap[rwp.SenderShardID] = rwp.SenderSeq
+	rrom.pbftNode.seqMapLock.Unlock()
+	rrom.pbftNode.pl.Plog.Printf("S%dN%d : 已经处理txinit结束啦宝宝 msg\n", rrom.pbftNode.ShardID, rrom.pbftNode.NodeID)
 }
 
 func (rrom *RawRelayOutsideModule) handleInjectTx(content []byte) {

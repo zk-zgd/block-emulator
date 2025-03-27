@@ -50,6 +50,8 @@ func (p *PbftConsensusNode) Propose() {
 					return
 				}
 
+				// 在此处进行改变交易路由
+
 				p.sequenceLock.Lock()
 				p.pl.Plog.Printf("S%dN%d get sequenceLock locked, now trying to propose...\n", p.ShardID, p.NodeID)
 				// propose
@@ -413,4 +415,15 @@ func (p *PbftConsensusNode) handleTxinitCreateinfo(content []byte) {
 	p.pl.Plog.Printf("目的分片%d已经收到了迁移计划通知消息，这里准备创建替身账户喵~~\n", p.ShardID)
 	p.pl.Plog.Printf("输出一下迁移计划通知消息喵~\n")
 	p.pl.Plog.Printf("TransientTxAddr: %s, Nowtime: %s, SendersharedID: %d\n", createtxinitinfo.TransientTxAddr, createtxinitinfo.Nowtime, createtxinitinfo.SendershardID)
+	// createtxinitinfo.
+	p.notifyPool = append(p.notifyPool, *createtxinitinfo)
+	/*
+		p.CurChain.Update_PartitionMap(createtxinitinfo.TransientTxAddr, p.ShardID)
+		p.CurChain.AddTransientAccount(createtxinitinfo.TransientTxAddr, createtxinitinfo.MigAccount_State, 0)
+		// 此处创建txinit交易
+		p.New_TxInit(createtxinitinfo.TransientTxAddr)
+		p.pl.Plog.Print("创建成功了xd，现在检查一下状态\n\n")
+		p.pl.Plog.Print(p.CurChain.FetchAccounts([]string{createtxinitinfo.TransientTxAddr})[0])
+		p.pl.Plog.Print("状态检查结束\n\n")
+	*/
 }

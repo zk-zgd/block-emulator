@@ -17,6 +17,9 @@ func Addr2Shard(addr Address) int {
 	if err != nil {
 		log.Panic(err)
 	}
+	if params.ShardNum <= 1 {
+		return 0
+	}
 	return int(num) % (params.ShardNum - 1)
 }
 

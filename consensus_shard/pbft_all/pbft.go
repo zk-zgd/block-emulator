@@ -6,6 +6,7 @@ import (
 	"blockEmulator/chain"
 	"blockEmulator/consensus_shard/pbft_all/dataSupport"
 	"blockEmulator/consensus_shard/pbft_all/pbft_log"
+	"blockEmulator/core"
 	"blockEmulator/message"
 	"blockEmulator/networks"
 	"blockEmulator/params"
@@ -81,6 +82,13 @@ type PbftConsensusNode struct {
 
 	// to handle the message outside of pbft
 	ohm OpInterShards
+
+	// 新增的通知池
+	notifyPool []message.TxinitCreate
+	// 新增的通知池锁
+	notifyPoolLock sync.Mutex
+	// 新增的块暂时更新
+	newblockTemp *core.Block
 }
 
 // generate a pbft consensus for a node
@@ -118,6 +126,9 @@ func NewPbftNode(shardID, nodeID uint64, pcc *params.ChainConfig, messageHandleT
 	p.isReply = make(map[string]bool)
 	p.height2Digest = make(map[uint64]string)
 	p.malicious_nums = (p.node_nums - 1) / 3
+
+	/// 新增的通知池-chx
+	p.notifyPool = make([]message.TxinitCreate, 0)
 
 	// init view & last commit time
 	p.view.Store(0)

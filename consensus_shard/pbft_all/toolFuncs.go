@@ -171,6 +171,39 @@ func (p *PbftConsensusNode) RelayWithProofSend(block *core.Block) {
 	p.CurChain.Txpool.ClearRelayPool()
 }
 
+// 此处进行生成生成relaytxinit消息的处理哦，新增merkle证明捏-chx
+func (p *PbftConsensusNode) TxinitRelayMsgSend(block *core.Block) {
+	for sid := uint64(0); sid < p.pbftChainConfig.ShardNums; sid++ {
+		if sid == p.ShardID {
+			continue
+		}
+
+		txHashes := make([][]byte, len(p.CurChain.Txinitpool.RelayPool[sid]))
+		if len(p.CurChain.Txinitpool.RelayPool[sid]) >= 0 {
+			p.pl.Plog.Printf("当前TXinit的中继交易池有%d个交易\n\n\n", len(p.CurChain.Txinitpool.RelayPool[sid]))
+		}
+		for i, txinit := range p.CurChain.Txinitpool.RelayPool[sid] {
+			txHashes[i] = txinit.TxHash[:]
+		}
+		txProofs := chain.TxInitProofBatchGenerateOnBlock(txHashes, block)
+
+		rwp := message.Txinit_Relay{
+			Txs:           p.CurChain.Txinitpool.RelayPool[sid],
+			TxProofs:      txProofs,
+			SenderShardID: p.ShardID,
+			SenderSeq:     p.sequenceID,
+		}
+		rByte, err := json.Marshal(rwp)
+		if err != nil {
+			log.Panic()
+		}
+		msg_send := message.MergeMessage(message.CTxinitRelyay, rByte)
+		go networks.TcpDial(msg_send, p.ip_nodeTable[sid][0])
+		p.pl.Plog.Printf("S%dN%d : sended relay txs & proofs to %d\n", p.ShardID, p.NodeID, sid)
+	}
+	p.CurChain.Txinitpool.ClearRelayPool()
+}
+
 // delete the txs in blocks. This list should be locked before calling this func.
 func DeleteElementsInList(list []*core.Transaction, elements []*core.Transaction) []*core.Transaction {
 	elementHashMap := make(map[string]bool)
@@ -226,4 +259,14 @@ func (p *PbftConsensusNode) CreateTxInitInfo(shardid int, targetShard int, accou
 	// 发送消息
 	p.pl.Plog.Printf("i have send this msg to Desshard :%d\n\n\n\n\n", targetShard)
 	go networks.TcpDial(cmsg, p.ip_nodeTable[uint64(targetShard)][0])
+}
+
+// 此处创建一个广播交易Txinit
+func (p *PbftConsensusNode) New_TxInit(transientaccountaddr utils.Address) {
+	p.pl.Plog.Print("开始创建TXinit咯~\n\n")
+	// 开始创建TXinit咯
+	txinit := core.NewTxinitTransaction(params.TxinitSenderAddr[p.ShardID], transientaccountaddr, p.ShardID, time.Now())
+	// 打印过渡账户状态
+	p.pl.Plog.Print(txinit)
+	p.CurChain.Txinitpool.AddTxInit2Pool(txinit)
 }

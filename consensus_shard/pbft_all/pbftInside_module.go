@@ -6,6 +6,7 @@ import (
 	"blockEmulator/message"
 	"blockEmulator/networks"
 	"blockEmulator/params"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -22,32 +23,165 @@ type RawRelayPbftExtraHandleMod struct {
 
 // propose request with different types
 func (rphm *RawRelayPbftExtraHandleMod) HandleinPropose() (bool, *message.Request) {
+	rphm.pbftNode.pl.Plog.Print("现在是提案阶段，生成新块之前检查notifypool\n\n")
+
+	// check notify pool
+	rphm.pbftNode.notifyPoolLock.Lock() // 通知池的锁
+	if len(rphm.pbftNode.notifyPool) != 0 {
+		// 修改currentblock的哈希
+		for _, notify := range rphm.pbftNode.notifyPool {
+			// 处理通知
+
+			rphm.pbftNode.CurChain.Update_PartitionMap(notify.TransientTxAddr, rphm.pbftNode.ShardID)
+			rphm.pbftNode.CurChain.AddTransientAccount(notify.TransientTxAddr, notify.MigAccount_State, 0)
+			// 此处创建txinit交易
+			rphm.pbftNode.New_TxInit(notify.TransientTxAddr)
+			rphm.pbftNode.pl.Plog.Print("创建成功了xd，现在检查一下状态\n\n")
+			rphm.pbftNode.pl.Plog.Print(rphm.pbftNode.CurChain.FetchAccounts([]string{notify.TransientTxAddr})[0])
+			rphm.pbftNode.pl.Plog.Print("状态检查结束\n\n")
+		}
+	}
+	rphm.pbftNode.notifyPool = make([]message.TxinitCreate, 0)
+	rphm.pbftNode.notifyPoolLock.Unlock() // 通知池的锁
+
+	// 检查一下当前块的哈希有没有变
+	if !bytes.Equal(rphm.pbftNode.CurChain.CurrentBlock.Hash, rphm.pbftNode.CurChain.CurrentBlock.Header.Hash()) {
+		rphm.pbftNode.pl.Plog.Print("出错啦，当前块的哈希变了！修改一下哈希\n\n")
+		rphm.pbftNode.CurChain.CurrentBlock.Hash = rphm.pbftNode.CurChain.CurrentBlock.Header.Hash()
+		rphm.pbftNode.pl.Plog.Print("修改好了，输出一下哈希：\n")
+		rphm.pbftNode.pl.Plog.Println(rphm.pbftNode.CurChain.CurrentBlock.Hash)
+	}
+
 	// new blocks
 	block := rphm.pbftNode.CurChain.GenerateBlock(int32(rphm.pbftNode.NodeID))
+	// 检查一下当前块里有无txinit交易
+	if len(block.TxinitBody) != 0 {
+		rphm.pbftNode.pl.Plog.Print("当前块里有txinit交易，输出一下txinit交易\n\n")
+		for _, txinit := range block.TxinitBody {
+			rphm.pbftNode.pl.Plog.Println(txinit)
+			rphm.pbftNode.pl.Plog.Print("\n\n")
+		}
+	}
+	// 添加 TxInit 交易时重新计算根
+	/*
+		if len(block.TxinitBody) > 0 {
+			txinitRoot := chain.GetTxinitTreeRoot(block.TxinitBody)
+			fmt.Print("生成新块时的 TxInit 根:\n")
+			fmt.Println(txinitRoot)
+			block.Header.TxinitRoot = txinitRoot
+			block.Hash = block.Header.Hash()
+		}
+	*/
+	rphm.pbftNode.newblockTemp = block
+	rphm.pbftNode.pl.Plog.Printf("S%dN%d : 新块已经生成啦，副本也保存啦, 块高是 = %d\n", rphm.pbftNode.ShardID, rphm.pbftNode.NodeID, block.Header.Number)
+	/*
+		rphm.pbftNode.pl.Plog.Printf("当前块高currentblockheight是 ：%d\n", rphm.pbftNode.CurChain.CurrentBlock.Header.Number)
+		rphm.pbftNode.pl.Plog.Printf("当前新块高度newblockheight是 ：%d\n\n\n", block.Header.Number)
+	*/
 	r := &message.Request{
 		RequestType: message.BlockRequest,
 		ReqTime:     time.Now(),
 	}
 	r.Msg.Content = block.Encode()
 
+	// 检查交易根
+	if !bytes.Equal(params.Changetxinitroot, block.Header.TxinitRoot) {
+		rphm.pbftNode.pl.Plog.Print("提交结束阶段交易txinit根就错了\n\n\n\n")
+	}
 	return true, r
 }
 
 // the DIY operation in preprepare
 func (rphm *RawRelayPbftExtraHandleMod) HandleinPrePrepare(ppmsg *message.PrePrepare) bool {
-	if rphm.pbftNode.CurChain.IsValidBlock(core.DecodeB(ppmsg.RequestMsg.Msg.Content)) != nil {
+
+	rphm.pbftNode.notifyPoolLock.Lock()
+	rphm.pbftNode.pl.Plog.Print("现在是预准备阶段，预准备之前检查notifypool\n\n")
+	if len(rphm.pbftNode.notifyPool) != 0 && rphm.pbftNode.NodeID == 0 {
+		for _, notify := range rphm.pbftNode.notifyPool {
+			// 处理通知
+			rphm.pbftNode.CurChain.Update_PartitionMap(notify.TransientTxAddr, rphm.pbftNode.ShardID)
+			rphm.pbftNode.CurChain.AddTransientAccount(notify.TransientTxAddr, notify.MigAccount_State, 0)
+			// 此处创建txinit交易
+			rphm.pbftNode.New_TxInit(notify.TransientTxAddr)
+			rphm.pbftNode.pl.Plog.Print("创建成功了xd，现在检查一下状态\n\n")
+			rphm.pbftNode.pl.Plog.Print(rphm.pbftNode.CurChain.FetchAccounts([]string{notify.TransientTxAddr})[0])
+			rphm.pbftNode.pl.Plog.Print("状态检查结束\n\n")
+		}
+	}
+	if !bytes.Equal(rphm.pbftNode.CurChain.CurrentBlock.Hash, rphm.pbftNode.CurChain.CurrentBlock.Header.Hash()) {
+		rphm.pbftNode.CurChain.CurrentBlock.Hash = rphm.pbftNode.CurChain.CurrentBlock.Header.Hash()
+	}
+	rphm.pbftNode.newblockTemp.Header.ParentBlockHash = rphm.pbftNode.CurChain.CurrentBlock.Hash
+	rphm.pbftNode.newblockTemp.Hash = rphm.pbftNode.newblockTemp.Header.Hash()
+	rphm.pbftNode.notifyPool = make([]message.TxinitCreate, 0)
+	rphm.pbftNode.notifyPoolLock.Unlock()
+	/*
+		b := core.DecodeB(ppmsg.RequestMsg.Msg.Content)
+		rphm.pbftNode.pl.Plog.Print("输出一下当前新块的哈希:\n")
+		rphm.pbftNode.pl.Plog.Println(b.Header.ParentBlockHash)
+		rphm.pbftNode.pl.Plog.Print("输出一下父哈希的哈希值:\n")
+		rphm.pbftNode.pl.Plog.Println(rphm.pbftNode.CurChain.CurrentBlock.Hash)
+		rphm.pbftNode.pl.Plog.Print("\n\n\n\n")
+	*/
+	/*
+		if rphm.pbftNode.CurChain.IsValidBlock(core.DecodeB(ppmsg.RequestMsg.Msg.Content)) == errors.New("修改一下当前块的哈希") {
+			b := core.DecodeB(ppmsg.RequestMsg.Msg.Content)
+			rphm.pbftNode.pl.Plog.Println(b.Header.ParentBlockHash)
+			rphm.pbftNode.pl.Plog.Println(rphm.pbftNode.CurChain.CurrentBlock.Hash)
+			rphm.pbftNode.pl.Plog.Printf("S%dN%d : the pre-prepare message is correct, putting it into the RequestPool. \n", rphm.pbftNode.ShardID, rphm.pbftNode.NodeID)
+			rphm.pbftNode.requestPool[string(ppmsg.Digest)] = ppmsg.RequestMsg
+			return true
+		}
+	*/
+	b := core.DecodeB(ppmsg.RequestMsg.Msg.Content)
+	if !bytes.Equal(params.Changetxinitroot, b.Header.TxinitRoot) {
+		rphm.pbftNode.pl.Plog.Print("提交结束阶段交易txinit根就错了\n\n\n\n")
+	}
+
+	// 现在验证临时块ovo-chx
+	if rphm.pbftNode.CurChain.IsValidBlock(rphm.pbftNode.newblockTemp) != nil {
 		rphm.pbftNode.pl.Plog.Printf("S%dN%d : not a valid block\n", rphm.pbftNode.ShardID, rphm.pbftNode.NodeID)
 		return false
 	}
 	rphm.pbftNode.pl.Plog.Printf("S%dN%d : the pre-prepare message is correct, putting it into the RequestPool. \n", rphm.pbftNode.ShardID, rphm.pbftNode.NodeID)
 	rphm.pbftNode.requestPool[string(ppmsg.Digest)] = ppmsg.RequestMsg
 	// merge to be a prepare message
+	if !bytes.Equal(params.Changetxinitroot, rphm.pbftNode.newblockTemp.Header.TxinitRoot) {
+		rphm.pbftNode.pl.Plog.Print("预准备阶段交易txinit根就错了\n\n\n\n")
+	}
 	return true
 }
 
 // the operation in prepare, and in pbft + tx relaying, this function does not need to do any.
 func (rphm *RawRelayPbftExtraHandleMod) HandleinPrepare(pmsg *message.Prepare) bool {
+
+	rphm.pbftNode.notifyPoolLock.Lock()
+	rphm.pbftNode.pl.Plog.Printf("现在是准备阶段，要进行prepare操作，首先进行notifypool检查啦！\n\n")
+	if len(rphm.pbftNode.notifyPool) != 0 && rphm.pbftNode.NodeID == 0 {
+		for _, notify := range rphm.pbftNode.notifyPool {
+			// 处理通知
+			rphm.pbftNode.CurChain.Update_PartitionMap(notify.TransientTxAddr, rphm.pbftNode.ShardID)
+			rphm.pbftNode.CurChain.AddTransientAccount(notify.TransientTxAddr, notify.MigAccount_State, 0)
+			// 此处创建txinit交易
+			rphm.pbftNode.New_TxInit(notify.TransientTxAddr)
+			rphm.pbftNode.pl.Plog.Print("创建成功了xd，现在检查一下状态\n\n")
+			rphm.pbftNode.pl.Plog.Print(rphm.pbftNode.CurChain.FetchAccounts([]string{notify.TransientTxAddr})[0])
+			rphm.pbftNode.pl.Plog.Print("状态检查结束\n\n")
+		}
+	}
+
+	if !bytes.Equal(rphm.pbftNode.CurChain.CurrentBlock.Hash, rphm.pbftNode.CurChain.CurrentBlock.Header.Hash()) {
+		rphm.pbftNode.CurChain.CurrentBlock.Hash = rphm.pbftNode.CurChain.CurrentBlock.Header.Hash()
+	}
+	rphm.pbftNode.newblockTemp.Header.ParentBlockHash = rphm.pbftNode.CurChain.CurrentBlock.Hash
+	rphm.pbftNode.newblockTemp.Hash = rphm.pbftNode.newblockTemp.Header.Hash()
+	rphm.pbftNode.notifyPool = make([]message.TxinitCreate, 0)
+	rphm.pbftNode.notifyPoolLock.Unlock()
+
 	fmt.Println("No operations are performed in Extra handle mod")
+	if !bytes.Equal(params.Changetxinitroot, rphm.pbftNode.newblockTemp.Header.TxinitRoot) {
+		rphm.pbftNode.pl.Plog.Print("准备阶段交易txinit根就错了\n\n\n\n")
+	}
 	return true
 }
 
@@ -56,6 +190,75 @@ func (rphm *RawRelayPbftExtraHandleMod) HandleinCommit(cmsg *message.Commit) boo
 	r := rphm.pbftNode.requestPool[string(cmsg.Digest)]
 	// requestType ...
 	block := core.DecodeB(r.Msg.Content)
+	// 此处检查通知池，每个阶段都要检查一次
+	/*
+		if !bytes.Equal(params.Changetxinitroot, block.Header.TxinitRoot) {
+			rphm.pbftNode.pl.Plog.Print("提交结束阶段交易txinit根就错了\n\n\n\n")
+		}
+	*/
+
+	rphm.pbftNode.notifyPoolLock.Lock()
+	rphm.pbftNode.pl.Plog.Print("现在是commit阶段，提交之前检查notifypool\n\n")
+	if len(rphm.pbftNode.notifyPool) != 0 && rphm.pbftNode.NodeID == 0 {
+		for _, notify := range rphm.pbftNode.notifyPool {
+			// 处理通知
+			rphm.pbftNode.CurChain.Update_PartitionMap(notify.TransientTxAddr, rphm.pbftNode.ShardID)
+			rphm.pbftNode.CurChain.AddTransientAccount(notify.TransientTxAddr, notify.MigAccount_State, 0)
+			// 此处创建txinit交易
+			rphm.pbftNode.New_TxInit(notify.TransientTxAddr)
+			rphm.pbftNode.pl.Plog.Print("创建成功了xd，现在检查一下状态\n\n")
+			rphm.pbftNode.pl.Plog.Print(rphm.pbftNode.CurChain.FetchAccounts([]string{notify.TransientTxAddr})[0])
+			rphm.pbftNode.pl.Plog.Print("状态检查结束\n\n")
+		}
+	}
+	if !bytes.Equal(rphm.pbftNode.CurChain.CurrentBlock.Hash, rphm.pbftNode.CurChain.CurrentBlock.Header.Hash()) {
+		rphm.pbftNode.CurChain.CurrentBlock.Hash = rphm.pbftNode.CurChain.CurrentBlock.Header.Hash()
+	}
+	rphm.pbftNode.newblockTemp.Header.ParentBlockHash = rphm.pbftNode.CurChain.CurrentBlock.Hash
+	rphm.pbftNode.newblockTemp.Hash = rphm.pbftNode.newblockTemp.Header.Hash()
+	rphm.pbftNode.notifyPool = make([]message.TxinitCreate, 0)
+	rphm.pbftNode.notifyPoolLock.Unlock()
+
+	/*
+		if !bytes.Equal(block.Header.ParentBlockHash, rphm.pbftNode.CurChain.CurrentBlock.Hash) {
+			if rphm.pbftNode.CurChain.CurrentBlock.IsAdded {
+				block.Header.ParentBlockHash = rphm.pbftNode.CurChain.CurrentBlock.Hash
+				block.Hash = block.Header.Hash()
+				// rphm.pbftNode.CurChain.CurrentBlock.IsAdded = false
+				rphm.pbftNode.CurChain.CurrentBlock.Hash = rphm.pbftNode.CurChain.CurrentBlock.Header.Hash()
+				rphm.pbftNode.pl.Plog.Print("修改好了，输出一下哈希：\n")
+				rphm.pbftNode.pl.Plog.Println(block.Header.ParentBlockHash)
+				rphm.pbftNode.pl.Plog.Println(rphm.pbftNode.CurChain.CurrentBlock.Hash)
+
+			} else {
+				rphm.pbftNode.pl.Plog.Print("出错了咩，当前块头和父块哈希不一样咩~\n\n")
+			}
+		}
+	*/
+	// 验证一下当前新块的哈希
+	/*
+		if !bytes.Equal(block.Header.ParentBlockHash, rphm.pbftNode.CurChain.CurrentBlock.Hash) {
+			rphm.pbftNode.pl.Plog.Print("出错啦，当前块的哈希变了！修改一下哈希\n\n")
+			block.Header.ParentBlockHash = rphm.pbftNode.CurChain.CurrentBlock.Hash
+			block.Hash = block.Header.Hash()
+			rphm.pbftNode.pl.Plog.Print("修改好了，输出一下哈希：\n")
+			rphm.pbftNode.pl.Plog.Println(block.Header.ParentBlockHash)
+			rphm.pbftNode.pl.Plog.Println(rphm.pbftNode.CurChain.CurrentBlock.Hash)
+		}
+	*/
+
+	if !bytes.Equal(block.Hash, rphm.pbftNode.newblockTemp.Hash) {
+		rphm.pbftNode.pl.Plog.Print("出错啦，当前块的哈希变了！修改一下哈希\n\n")
+		block = rphm.pbftNode.newblockTemp
+		rphm.pbftNode.pl.Plog.Print("修改好了，输出一下哈希：\n")
+		rphm.pbftNode.pl.Plog.Println(block.Hash)
+	}
+
+	// 如果有多个节点，此处要进行通知
+	/************************************************************************************/
+	// TODO-chx: 通知其他节点
+
+	// check the block
 	rphm.pbftNode.pl.Plog.Printf("S%dN%d : adding the block %d...now height = %d \n", rphm.pbftNode.ShardID, rphm.pbftNode.NodeID, block.Header.Number, rphm.pbftNode.CurChain.CurrentBlock.Header.Number)
 	rphm.pbftNode.CurChain.AddBlock(block)
 	rphm.pbftNode.pl.Plog.Printf("S%dN%d : added the block %d... \n", rphm.pbftNode.ShardID, rphm.pbftNode.NodeID, block.Header.Number)
@@ -69,6 +272,8 @@ func (rphm *RawRelayPbftExtraHandleMod) HandleinCommit(cmsg *message.Commit) boo
 		interShardTxs := make([]*core.Transaction, 0)
 		relay1Txs := make([]*core.Transaction, 0)
 		relay2Txs := make([]*core.Transaction, 0)
+		txinits1 := make([]*core.TxinitTransaction, 0)
+		txinits2 := make([]*core.TxinitTransaction, 0)
 		for _, tx := range block.Body {
 			ssid := rphm.pbftNode.CurChain.Get_PartitionMap(tx.Sender)
 			rsid := rphm.pbftNode.CurChain.Get_PartitionMap(tx.Recipient)
@@ -102,6 +307,26 @@ func (rphm *RawRelayPbftExtraHandleMod) HandleinCommit(cmsg *message.Commit) boo
 		} else {
 			rphm.pbftNode.RelayMsgSend()
 		}
+		rphm.pbftNode.pl.Plog.Print("开始处理txinit交易啦~，当前已经运行过addblock啦，现在是中继relaytxinit\n\n\n")
+		for _, txinit := range block.TxinitBody {
+			if txinit.DestinationshardID == rphm.pbftNode.ShardID {
+				rphm.pbftNode.pl.Plog.Printf("现在是提交阶段，进行txinit的处理，加入txinitrelay交易池中\n\n\n")
+				// 当前迁移目标分片等于当前分片ID 并且当前节点是0
+				txinits1 = append(txinits1, txinit)
+				for i := 0; i < params.ShardNum-1; i++ {
+					if txinit.DestinationshardID != uint64(i) {
+						txinits2 = append(txinits2, txinit)
+						rphm.pbftNode.CurChain.Txinitpool.AddRelayTxInit(txinit, uint64(i))
+					} else {
+						continue
+					}
+				}
+
+			}
+
+		}
+		// 添加txinitrelay处理啦-chx
+		rphm.pbftNode.TxinitRelayMsgSend(block)
 
 		// send txs excuted in this block to the listener
 		// add more message to measure more metrics

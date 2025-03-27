@@ -1,6 +1,7 @@
 package core
 
 import (
+	"blockEmulator/params"
 	"blockEmulator/utils"
 	"bytes"
 	"crypto/sha256"
@@ -12,24 +13,15 @@ import (
 
 // 此处存放txinit交易的定义
 
-type TxInitProofResult struct {
-	Is_Txinit   bool
-	Found       bool
-	BlockHash   []byte
-	TxHash      []byte
-	TxRoot      []byte
-	BlockHeight uint64
-	KeyList     [][]byte
-	ValueList   [][]byte
-	Error       string
-}
-
 // 该条为TXinit的接收特殊地址
 const TXINIT_ADDR = "12345678987654321"
 
 type TxinitTransaction struct {
 	// 发送账户地址
 	Sender utils.Address
+
+	// Recipient utils.Address
+	Recipient utils.Address
 	// Nonce     uint64
 	Signature []byte // not implemented now.
 	// Value     *big.Int
@@ -55,10 +47,12 @@ func NewTxinitTransaction(sender utils.Address, transientAccountAddr utils.Addre
 		Time:                 time,
 		Is_TxInit:            true,
 		DestinationshardID:   destShardID,
+		Recipient:            params.TxinitSpecialReceiver,
 	}
+	tx.Signature = []byte("")
 	hash := sha256.Sum256(tx.Encode())
 	tx.TxHash = hash[:]
-	tx.Signature = []byte("")
+
 	return tx
 }
 

@@ -19,6 +19,7 @@ type BlockHeader struct {
 	ParentBlockHash []byte
 	StateRoot       []byte
 	TxRoot          []byte
+	TxinitRoot      []byte
 	Bloom           bitset.BitSet
 	Number          uint64
 	Time            time.Time
@@ -60,6 +61,7 @@ func (bh *BlockHeader) PrintBlockHeader() string {
 		hex.EncodeToString(bh.ParentBlockHash),
 		hex.EncodeToString(bh.StateRoot),
 		hex.EncodeToString(bh.TxRoot),
+		hex.EncodeToString(bh.TxinitRoot),
 		bh.Number,
 		bh.Time,
 	}
@@ -69,13 +71,16 @@ func (bh *BlockHeader) PrintBlockHeader() string {
 
 // The definition of block
 type Block struct {
-	Header *BlockHeader
-	Body   []*Transaction
-	Hash   []byte
+	Header     *BlockHeader
+	Body       []*Transaction
+	TxinitBody []*TxinitTransaction
+	IsAdded    bool
+	Hash       []byte
 }
 
-func NewBlock(bh *BlockHeader, bb []*Transaction) *Block {
-	return &Block{Header: bh, Body: bb}
+func NewBlock(bh *BlockHeader, bb []*Transaction, binit []*TxinitTransaction) *Block {
+
+	return &Block{Header: bh, Body: bb, TxinitBody: binit, IsAdded: false}
 }
 
 func (b *Block) PrintBlock() string {

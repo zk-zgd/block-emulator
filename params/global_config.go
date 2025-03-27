@@ -16,8 +16,15 @@ var (
 	SenderAddr = []string{"0000000000000000000000000000", "0000000000000000000000000001", "0000000000000000000000000002", "0000000000000000000000000003"} // The address of the sender. The sender is the node that sends the Txreq.
 	// TXinit专用地址
 	TxinitSenderAddr = []string{"1000000000000000000000000000", "1000000000000000000000000001", "1000000000000000000000000002", "1000000000000000000000000003"} // The address of the sender. The sender is the node that sends the Txinit.
-)
+	// The address of the receiver. The receiver is the node that receives the Txinit.
+	TxinitSpecialReceiver = "12345678987654321"
 
+	// Block represents a blockchain block
+
+	// 记录txinitroot的变化
+
+)
+var Changetxinitroot []byte
 var Cishu = false
 
 // 迁移计划结构体
@@ -51,7 +58,7 @@ var (
 
 	InjectSpeed   = 2000   // The speed of transaction injection
 	TotalDataSize = 160000 // The total number of txs to be injected
-	TxBatchSize   = 16000  // The supervisor read a batch of txs then send them. The size of a batch is 'TxBatchSize'
+	TxBatchSize   = 2000   // The supervisor read a batch of txs then send them. The size of a batch is 'TxBatchSize'
 
 	BrokerNum            = 10 // The # of Broker accounts used in Broker / CLPA_Broker.
 	RelayWithMerkleProof = 0  // When using a consensus about "Relay", nodes will send Tx Relay with proof if "RelayWithMerkleProof" = 1
@@ -61,8 +68,8 @@ var (
 	LogWrite_path      = ExpDataRootDir + "/log"       // Log output path
 	DatabaseWrite_path = ExpDataRootDir + "/database/" // database write path
 
-	SupervisorAddr = "127.0.0.1:18800"        // Supervisor ip address
-	DatasetFile    = `./selectedTxs_300K.csv` // The raw BlockTransaction data path
+	SupervisorAddr = "127.0.0.1:18800"                         // Supervisor ip address
+	DatasetFile    = `./2000000to2999999_BlockTransaction.csv` // The raw BlockTransaction data path
 
 	ReconfigTimeGap = 50 // The time gap between epochs. This variable is only used in CLPA / CLPA_Broker now.
 )
@@ -72,6 +79,11 @@ var (
 	Delay       int // The delay of network (ms) when sending. 0 if delay < 0
 	JitterRange int // The jitter range of delay (ms). Jitter follows a uniform distribution. 0 if JitterRange < 0.
 	Bandwidth   int // The bandwidth limit (Bytes). +inf if bandwidth < 0
+)
+
+var (
+	AddrNum  = 0
+	Addrnum1 = 0
 )
 
 // read from file

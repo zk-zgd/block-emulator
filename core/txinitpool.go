@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"sync"
 	"time"
 	"unsafe"
@@ -15,6 +16,7 @@ type TxInitPool struct {
 
 // NewTxInitPool 创建新的TxInit交易池
 func NewTxInitPool() *TxInitPool {
+	fmt.Print("\nCreating new TxInitPool\n\n")
 	return &TxInitPool{
 		TxInitQueue: make([]*TxinitTransaction, 0),
 		RelayPool:   make(map[uint64][]*TxinitTransaction),
@@ -80,6 +82,9 @@ func (pool *TxInitPool) PackTxInitsWithBytes(max_bytes int) []*TxinitTransaction
 func (pool *TxInitPool) AddRelayTxInit(tx *TxinitTransaction, shardID uint64) {
 	pool.lock.Lock()
 	defer pool.lock.Unlock()
+	if pool.RelayPool == nil {
+		pool.RelayPool = make(map[uint64][]*TxinitTransaction)
+	}
 	_, ok := pool.RelayPool[shardID]
 	if !ok {
 		pool.RelayPool[shardID] = make([]*TxinitTransaction, 0)
