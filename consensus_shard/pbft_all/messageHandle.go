@@ -51,7 +51,12 @@ func (p *PbftConsensusNode) Propose() {
 				}
 
 				// 在此处进行改变交易路由
-
+				if p.ShardID == uint64(0) && !params.Cishu {
+					p.pl.Plog.Printf("现在分片ID是%d\n\n\n\n", p.ShardID)
+					p.pl.Plog.Printf("现在我要开始添加Txreq请求了！\n\n\n\n")
+					p.CreateTxReq(int(p.ShardID))
+					params.Cishu = true
+				}
 				p.sequenceLock.Lock()
 				p.pl.Plog.Printf("S%dN%d get sequenceLock locked, now trying to propose...\n", p.ShardID, p.NodeID)
 				// propose
@@ -272,15 +277,66 @@ func (p *PbftConsensusNode) handleCommit(content []byte) {
 			p.pl.Plog.Printf("S%dN%d: this round of pbft %d is end \n", p.ShardID, p.NodeID, p.sequenceID)
 			p.sequenceID += 1
 		}
+		p.pl.Plog.Printf("当前提交阶段已经结束，现在进入阶段4，交易路由重定向阶段\n\n\n")
 
-		p.pbftStage.Store(1)
-		p.lastCommitTime.Store(time.Now().UnixMilli())
+		stage_4 := new(message.TxRedirectMsg)
+		bstage4, err := json.Marshal(stage_4)
+		if err != nil {
+			log.Panic()
+		}
+
+		msg := message.MergeMessage(message.CTxRedirect, bstage4)
+		networks.Broadcast(p.RunningNode.IPaddr, p.getNeighborNodes(), msg)
+		networks.TcpDial(msg, p.RunningNode.IPaddr)
+		p.pl.Plog.Printf("S%dN%d : 交易重定向消息已经广播啦，现在进入阶段五ovo\n", p.ShardID, p.NodeID)
+		/* for acaddr, nowacshardid := range p.CurChain.DirtyMap {
+
+			p.pl.Plog.Printf("当前账户%s的分片ID是%d\n", acaddr, nowacshardid)
+			// p.CurChain.Update_PartitionMap(acaddr, p.ShardID)
+			// p.CurChain.Update_AccountShardID(acaddr, p.ShardID, nowacshardid)
+			TempPool := new(message.TxRedirect)
+			TempPool.ShardID = p.ShardID
+			for _, txs := range p.CurChain.Txpool.TxQueue {
+				if txs.Sender == acaddr {
+					p.pl.Plog.Printf("当前账户%s的交易是%s\n", acaddr, txs.TxHash)
+					// 此处添加交易路由重定向
+					// 将交易加入临时池
+					TempPool.Temppool.AddTx2Pool(txs)
+					// 删除原来交易池中的交易
+					p.CurChain.Txpool.DeleteTx(txs)
+					TempPool.ReceiveTxShardID = nowacshardid
+					TempPool.Isnil = false
+					// 此处添加交易路由重定向结束
+				}
+			}
+			// 此处添加交易路由重定向结束
+			// 发送交易路由重定向消息
+			if len(TempPool.Temppool.TxQueue) == 0 {
+				p.pl.Plog.Printf("当前账户%s没有交易需要重定向\n", acaddr)
+				TempPool.Isnil = true
+			}
+			btxredirect, err := json.Marshal(TempPool)
+			if err != nil {
+				log.Panic()
+			}
+			p.pl.Plog.Printf("S%dN%d :现在开始发送交易重定向消息 \n", p.ShardID, p.NodeID)
+			mergemsg := message.MergeMessage(message.CTxRedirect, btxredirect)
+
+			// 发送给所有分片
+			networks.TcpDial(mergemsg, p.ip_nodeTable[nowacshardid][0])
+		}
+
+		// 新添加一个交易路由重定向阶段
+		p.pbftStage.Add(1)
+		p.lastCommitTime.Store(time.Now().UnixMilli()) */
 
 		// if this node is a main node, then unlock the sequencelock
-		if p.NodeID == uint64(p.view.Load()) {
-			p.sequenceLock.Unlock()
-			p.pl.Plog.Printf("S%dN%d get sequenceLock unlocked...\n", p.ShardID, p.NodeID)
-		}
+		/*
+			if p.NodeID == uint64(p.view.Load()) {
+				p.sequenceLock.Unlock()
+				p.pl.Plog.Printf("S%dN%d get sequenceLock unlocked...\n", p.ShardID, p.NodeID)
+			}
+		*/
 	}
 }
 
@@ -426,4 +482,59 @@ func (p *PbftConsensusNode) handleTxinitCreateinfo(content []byte) {
 		p.pl.Plog.Print(p.CurChain.FetchAccounts([]string{createtxinitinfo.TransientTxAddr})[0])
 		p.pl.Plog.Print("状态检查结束\n\n")
 	*/
+}
+
+func (p *PbftConsensusNode) handleTxRedirect(content []byte) {
+	msg := new(message.TxRedirectMsg)
+	err := json.Unmarshal(content, msg)
+	if err != nil {
+		log.Panic()
+	}
+
+	// 遍历现有的交易池
+	for acaddr, nowacshardid := range p.CurChain.DirtyMap {
+		p.pl.Plog.Printf("当前账户%s的分片ID是%d\n", acaddr, nowacshardid)
+		// p.CurChain.Update_PartitionMap(acaddr, p.ShardID)
+		// p.CurChain.Update_AccountShardID(acaddr, p.ShardID, nowacshardid)
+		TempPool := new(message.TxRedirect)
+		TempPool.ShardID = p.ShardID
+		for _, txs := range p.CurChain.Txpool.TxQueue {
+			if txs.Sender == acaddr && !txs.Relayed {
+				// p.pl.Plog.Printf("当前账户%s的交易是%s\n", acaddr, txs.TxHash)
+				// 此处添加交易路由重定向
+				// 将交易加入临时池
+				TempPool.Temppool.AddTx2Pool(txs)
+				// 删除原来交易池中的交易
+				p.CurChain.Txpool.DeleteTx(txs)
+				TempPool.ReceiveTxShardID = nowacshardid
+				TempPool.Isnil = false
+				// 此处添加交易路由重定向结束
+			}
+		}
+		// 此处添加交易路由重定向结束
+		// 发送交易路由重定向消息
+		if len(TempPool.Temppool.TxQueue) == 0 {
+			p.pl.Plog.Printf("当前账户%s没有交易需要重定向\n", acaddr)
+			TempPool.Isnil = true
+		}
+		btxredirect, err := json.Marshal(TempPool)
+		if err != nil {
+			log.Panic()
+		}
+		p.pl.Plog.Printf("S%dN%d :现在开始发送交易重定向消息 \n", p.ShardID, p.NodeID)
+		mergemsg := message.MergeMessage(message.CTxRedirectout, btxredirect)
+		// 发送给所有分片
+		networks.TcpDial(mergemsg, p.ip_nodeTable[nowacshardid][0])
+	}
+
+	// curView := p.view.Load()
+	p.pbftLock.Lock()
+	defer p.pbftLock.Unlock()
+
+	p.pl.Plog.Printf("当前分片%d已经收到了txredirect的消息，交易已经全部入库，现在重置阶段ovo\n\n", p.ShardID)
+	p.pbftStage.Store(1)
+	if p.NodeID == uint64(p.view.Load()) {
+		p.sequenceLock.Unlock()
+		p.pl.Plog.Printf("S%dN%d get sequenceLock unlocked...\n", p.ShardID, p.NodeID)
+	}
 }

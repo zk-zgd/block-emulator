@@ -16,6 +16,35 @@ type TxPool struct {
 	// The pending list is ignored
 }
 
+// Delete a single transaction from TxQueue by matching the transaction pointer
+func (txpool *TxPool) DeleteTx(tx *Transaction) {
+	txpool.lock.Lock()
+	defer txpool.lock.Unlock()
+	for i, t := range txpool.TxQueue {
+		if t == tx {
+			txpool.TxQueue = append(txpool.TxQueue[:i], txpool.TxQueue[i+1:]...)
+			return
+		}
+	}
+}
+
+// Delete multiple transactions from TxQueue
+func (txpool *TxPool) DeleteTxs(txs []*Transaction) {
+	txpool.lock.Lock()
+	defer txpool.lock.Unlock()
+	txMap := make(map[*Transaction]bool)
+	for _, tx := range txs {
+		txMap[tx] = true
+	}
+	newQueue := make([]*Transaction, 0)
+	for _, tx := range txpool.TxQueue {
+		if !txMap[tx] {
+			newQueue = append(newQueue, tx)
+		}
+	}
+	txpool.TxQueue = newQueue
+}
+
 func NewTxPool() *TxPool {
 	return &TxPool{
 		TxQueue:   make([]*Transaction, 0),

@@ -31,6 +31,8 @@ type BlockChain struct {
 	Txpool       *core.TxPool        // the transaction pool
 	Txinitpool   *core.TxInitPool    // txinit交易池
 	PartitionMap map[string]uint64   // the partition map which is defined by some algorithm can help account parition
+	DirtyMap     map[string]uint64   // 存放修改的账户地址部分
+	dmlock       sync.RWMutex
 	pmlock       sync.RWMutex
 }
 
@@ -235,6 +237,18 @@ func (bc *BlockChain) GenerateBlock(miner int32) *core.Block {
 		txs = bc.Txpool.PackTxs(bc.ChainConfig.BlockSize)
 		txinits = bc.Txinitpool.PackTxInits(bc.ChainConfig.BlockSize)
 	}
+
+	// 更新本分片的账户路由
+	for _, txx := range txs {
+		// fmt.Print("这里是更新本分片map中没有的账户的地方.\n")
+		if bc.Get_PartitionMap(txx.Sender) == uint64(utils.Addr2Shard(txx.Sender)) {
+			bc.Update_PartitionMap(txx.Sender, uint64(utils.Addr2Shard(txx.Sender)))
+		}
+		if bc.Get_PartitionMap(txx.Recipient) == uint64(utils.Addr2Shard(txx.Recipient)) {
+			bc.Update_PartitionMap(txx.Recipient, uint64(utils.Addr2Shard(txx.Recipient)))
+		}
+	}
+
 	if bc.ChainConfig.ShardID == 0 {
 		for _, tx := range txs {
 			if tx.Sender == "32be343b94f860124dc4fee278fdcbd38c102d88" {
@@ -372,11 +386,7 @@ func (bc *BlockChain) AddBlock(b *core.Block) {
 	for _, txinit := range b.TxinitBody {
 		fmt.Printf("这里修改每个分片的迁移账户路由，当前分片为%d\n\n\n", bc.ChainConfig.ShardID)
 		bc.Update_PartitionMap(txinit.TransientAccountAddr, txinit.DestinationshardID)
-
-		
-
-
-
+		bc.DirtyMap[txinit.TransientAccountAddr] = txinit.DestinationshardID
 	}
 
 	bc.Storage.AddBlock(b)
@@ -394,6 +404,7 @@ func NewBlockChain(cc *params.ChainConfig, db ethdb.Database) (*BlockChain, erro
 		Txinitpool:   core.NewTxInitPool(),
 		Storage:      storage.NewStorage(chainDBfp, cc),
 		PartitionMap: make(map[string]uint64),
+		DirtyMap:     make(map[string]uint64),
 	}
 	curHash, err := bc.Storage.GetNewestBlockHash()
 	if err != nil {
@@ -591,7 +602,7 @@ func (bc *BlockChain) AddTransientAccount(ac string, as core.AccountState, miner
 		// 检查账户是否属于当前分片
 		if bc.Get_PartitionMap(ac) == bc.ChainConfig.ShardID {
 			new_state := &core.AccountState{
-				Balance: params.Init_Balance,
+				Balance: as.Balance,
 				Nonce:   as.Nonce,
 			}
 			st.Update([]byte(ac), new_state.Encode())
@@ -724,4 +735,11 @@ func (bc *BlockChain) PrintBlockChain() string {
 	res := fmt.Sprintf("%v\n", vals)
 	fmt.Println(res)
 	return res
+}
+
+// 存放当前修改过的账户地址分布
+func (bc *BlockChain) AddDirtyMap(key string, val uint64) {
+	bc.dmlock.Lock()
+	defer bc.dmlock.Unlock()
+	bc.DirtyMap[key] = val
 }

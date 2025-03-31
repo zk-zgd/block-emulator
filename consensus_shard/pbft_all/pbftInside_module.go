@@ -88,7 +88,7 @@ func (rphm *RawRelayPbftExtraHandleMod) HandleinPropose() (bool, *message.Reques
 	if !bytes.Equal(params.Changetxinitroot, block.Header.TxinitRoot) {
 		rphm.pbftNode.pl.Plog.Print("提交结束阶段交易txinit根就错了\n\n\n\n")
 	}
-	return true, r
+	return true, r 
 }
 
 // the DIY operation in preprepare
@@ -283,10 +283,10 @@ func (rphm *RawRelayPbftExtraHandleMod) HandleinCommit(cmsg *message.Commit) boo
 			}
 
 			if !tx.Relayed && ssid != rphm.pbftNode.ShardID {
-				log.Panic("incorrect tx")
+				log.Panic("incorrect tx1")
 			}
 			if tx.Relayed && rsid != rphm.pbftNode.ShardID {
-				log.Panic("incorrect tx")
+				log.Panic("incorrect tx2")
 			}
 			if rsid != rphm.pbftNode.ShardID {
 				relay1Txs = append(relay1Txs, tx)

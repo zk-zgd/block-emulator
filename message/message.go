@@ -34,10 +34,16 @@ const (
 
 	// Txinit中继交易的消息头
 	CTxinitRelyay MessageType = "TxinitRelay"
+	// 新的阶段4的Txredirect交易重定向消息的消息头
+	CTxRedirect MessageType = "Txredirect"
+	// 发送给其他分片的交易的消息头
+	CTxRedirectout MessageType = "TxRedirectout"
 )
 
 var (
 	BlockRequest RequestType = "Block"
+	GraphRequest RequestType = "Graph" // 图划分请求
+
 	// add more types
 	// ...
 )

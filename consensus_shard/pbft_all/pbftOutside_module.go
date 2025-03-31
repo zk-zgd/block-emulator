@@ -2,10 +2,11 @@ package pbft_all
 
 import (
 	"blockEmulator/chain"
+	"blockEmulator/core"
 	"blockEmulator/message"
 	"blockEmulator/networks"
-	"blockEmulator/params"
 	"blockEmulator/utils"
+	"bytes"
 	"encoding/json"
 	"log"
 )
@@ -27,6 +28,8 @@ func (rrom *RawRelayOutsideModule) HandleMessageOutsidePBFT(msgType message.Mess
 		rrom.handleInjectTx(content)
 	case message.CTxinitRelyay:
 		rrom.handleRelayTxInit(content)
+	case message.CTxRedirectout:
+		go rrom.handleTxRedirectout(content)
 	default:
 	}
 	return true
@@ -134,7 +137,7 @@ func (rrom *RawRelayOutsideModule) handleRelayTxInit(content []byte) {
 	// validate the proofs of txs
 	isAllCorrect := true
 	for i, tx := range rwp.Txs {
-		if ok, errors:= chain.TxInitProofVerify(tx.TxHash, &rwp.TxProofs[i]); !ok {
+		if ok, errors := chain.TxInitProofVerify(tx.TxHash, &rwp.TxProofs[i]); !ok {
 			rrom.pbftNode.pl.Plog.Print("当前的错误是：")
 			rrom.pbftNode.pl.Plog.Println(errors)
 			rrom.pbftNode.pl.Plog.Print("\n\n\n")
@@ -163,11 +166,33 @@ func (rrom *RawRelayOutsideModule) handleInjectTx(content []byte) {
 	}
 	rrom.pbftNode.CurChain.Txpool.AddTxs2Pool(it.Txs)
 	// rrom.pbftNode.pl.Plog.Printf("现在分片ID是%d\n\n\n\n", rrom.pbftNode.ShardID)
-	if rrom.pbftNode.ShardID == uint64(0) && !params.Cishu {
-		rrom.pbftNode.pl.Plog.Printf("现在分片ID是%d\n\n\n\n", rrom.pbftNode.ShardID)
-		rrom.pbftNode.pl.Plog.Printf("现在我要开始添加Txreq请求了！\n\n\n\n")
-		rrom.pbftNode.CreateTxReq(int(rrom.pbftNode.ShardID))
-		params.Cishu = true
-	}
 	rrom.pbftNode.pl.Plog.Printf("S%dN%d : has handled injected txs msg, txs: %d \n", rrom.pbftNode.ShardID, rrom.pbftNode.NodeID, len(it.Txs))
+}
+
+func (rrom *RawRelayOutsideModule) handleTxRedirectout(content []byte) {
+	it := new(message.TxRedirect)
+	err := json.Unmarshal(content, it)
+	if err != nil {
+		log.Panic(err)
+	}
+	if it.Isnil {
+		rrom.pbftNode.pl.Plog.Printf("当前分片%d,节点%d,收到的相关迁移账户的交易列表是空的，不做任何处理\n\n\n", rrom.pbftNode.ShardID, rrom.pbftNode.NodeID)
+	} else {
+		rrom.pbftNode.pl.Plog.Print("现在开始处理收到的相关迁移账户交易\n\n\n")
+		for _, tx := range it.Temppool.TxQueue {
+			tx1 := false
+			for _, tx2 := range rrom.pbftNode.CurChain.Txpool.TxQueue {
+				if bytes.Equal(tx.TxHash, tx2.TxHash) {
+					rrom.pbftNode.pl.Plog.Print("交易已经存在了，不需要再进行添加了\n\n")
+					tx1 = true
+					break
+				}
+			}
+			if tx1 {
+				continue
+			}
+			rrom.pbftNode.CurChain.Txpool.AddTxs2Pool_Head([]*core.Transaction{tx})
+		}
+
+	}
 }

@@ -58,7 +58,7 @@ type PbftConsensusNode struct {
 	height2Digest     map[uint64]string               // sequence (block height) -> request, fast read
 
 	// pbft stage wait
-	pbftStage              atomic.Int32 // 1->Preprepare, 2->Prepare, 3->Commit, 4->Done
+	pbftStage              atomic.Int32 // 1->Preprepare, 2->Prepare, 3->Commit, 4->TransactionRoute ,5->Done
 	pbftLock               sync.Mutex
 	conditionalVarpbftLock sync.Cond
 
@@ -216,7 +216,12 @@ func (p *PbftConsensusNode) handleMessage(msg []byte) {
 		p.handleTxinitCreateinfo(content)
 	case message.CTxPlanOut:
 		p.handlePlanout(content)
+	// 交易重定向
+	case message.CTxRedirect:
+		go p.handleTxRedirect(content)
+
 	// handle the message from outside
+
 	default:
 		go p.ohm.HandleMessageOutsidePBFT(msgType, content)
 	}

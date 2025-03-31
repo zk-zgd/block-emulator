@@ -15,7 +15,7 @@ type ViewChangeData struct {
 // propose a view change request
 func (p *PbftConsensusNode) viewChangePropose() {
 	// load pbftStage as 5, i.e., making a view change
-	p.pbftStage.Store(5)
+	p.pbftStage.Store(6)
 
 	p.pl.Plog.Println("Main node is time out, now trying to view change. ")
 
