@@ -29,6 +29,25 @@ func (p *PbftConsensusNode) Propose() {
 			nextRoundBeginSignal <- true
 		}
 	}()
+	// 这个函数仅仅适合m分片进行数据的读取，每隔10个共识轮读取一次
+	/*
+		go func() {
+			//
+			for {
+				time.Sleep(time.Second)
+				// 主分片轮询检查当前共识轮的大小, 当为10 的时候进行数据的读取
+				if p.ShardID == uint64(params.ShardNum-1) && params.ConsensusRoundForEvrShard[params.ShardNum-1] > 0 && params.ConsensusRoundForEvrShard[params.ShardNum-1]%5 == 0 {
+					// 遍历所有分片
+					for shardID := 0; shardID < params.ShardNum-1; shardID++ {
+						p.pl.Plog.Print("现在开始读取分片0的区块交易\n\n\n\n")
+						go exportShardBlocks(shardID, 0)
+						p.pl.Plog.Print("读取结束！！！！！！\n\n\n\n")
+					}
+					fmt.Println("所有分片的区块数据已成功导出到 CSV 文件中！")
+				}
+			}
+
+		}()*/
 
 	go func() {
 		// check whether to view change
@@ -41,6 +60,22 @@ func (p *PbftConsensusNode) Propose() {
 		}
 	}()
 
+	/*
+		go func() {
+			for {
+				time.Sleep(time.Second)
+				// 发送消息
+				if p.ShardID != uint64(params.ShardNum)-1 && params.ConsensusRoundForEvrShard[p.ShardID] > 0 && params.ConsensusRoundForEvrShard[p.ShardID]%5 == 0 {
+					if len(p.notifyPool) != 0 {
+						time.Sleep(time.Millisecond * 10)
+						continue
+					}
+					go p.SendMessage2MShard(p.ShardID, 0)
+				}
+			}
+		}()
+	*/
+
 	for {
 		select {
 		case <-nextRoundBeginSignal:
@@ -51,7 +86,7 @@ func (p *PbftConsensusNode) Propose() {
 				}
 
 				// 在此处进行改变交易路由
-				if p.ShardID == uint64(0) && !params.Cishu {
+				if p.ShardID == uint64(1) && !params.Cishu && params.ConsensusRoundForEvrShard[uint64(1)] >= 10 {
 					p.pl.Plog.Printf("现在分片ID是%d\n\n\n\n", p.ShardID)
 					p.pl.Plog.Printf("现在我要开始添加Txreq请求了！\n\n\n\n")
 					p.CreateTxReq(int(p.ShardID))
@@ -277,18 +312,19 @@ func (p *PbftConsensusNode) handleCommit(content []byte) {
 			p.pl.Plog.Printf("S%dN%d: this round of pbft %d is end \n", p.ShardID, p.NodeID, p.sequenceID)
 			p.sequenceID += 1
 		}
-		p.pl.Plog.Printf("当前提交阶段已经结束，现在进入阶段4，交易路由重定向阶段\n\n\n")
+		// p.pl.Plog.Printf("当前提交阶段已经结束，现在进入阶段4，交易路由重定向阶段\n\n\n")
 
-		stage_4 := new(message.TxRedirectMsg)
-		bstage4, err := json.Marshal(stage_4)
-		if err != nil {
-			log.Panic()
-		}
-
-		msg := message.MergeMessage(message.CTxRedirect, bstage4)
-		networks.Broadcast(p.RunningNode.IPaddr, p.getNeighborNodes(), msg)
-		networks.TcpDial(msg, p.RunningNode.IPaddr)
-		p.pl.Plog.Printf("S%dN%d : 交易重定向消息已经广播啦，现在进入阶段五ovo\n", p.ShardID, p.NodeID)
+		//stage_4 := new(message.TxRedirectMsg)
+		//bstage4, err := json.Marshal(stage_4)
+		//if err != nil {
+		//	log.Panic()
+		//}
+		/*
+			msg := message.MergeMessage(message.CTxRedirect, bstage4)
+			networks.Broadcast(p.RunningNode.IPaddr, p.getNeighborNodes(), msg)
+			networks.TcpDial(msg, p.RunningNode.IPaddr)
+			p.pl.Plog.Printf("S%dN%d : 交易重定向消息已经广播啦，现在进入阶段五ovo\n", p.ShardID, p.NodeID)
+		*/
 		/* for acaddr, nowacshardid := range p.CurChain.DirtyMap {
 
 			p.pl.Plog.Printf("当前账户%s的分片ID是%d\n", acaddr, nowacshardid)
@@ -337,7 +373,16 @@ func (p *PbftConsensusNode) handleCommit(content []byte) {
 				p.pl.Plog.Printf("S%dN%d get sequenceLock unlocked...\n", p.ShardID, p.NodeID)
 			}
 		*/
+		// p.pl.Plog.Printf("当前分片%d已经收到了txredirect的消息，交易已经全部入库，现在重置阶段ovo\n\n", p.ShardID)
+		params.ConsensusRoundForEvrShard[p.ShardID]++
+		// p.pl.Plog.Printf("这里改变共识轮的大小, 当前阶段结束后分片的共识轮是: %d\n\n\n", params.ConsensusRoundForEvrShard[p.ShardID])
+		p.pbftStage.Store(1)
+		if p.NodeID == uint64(p.view.Load()) {
+			p.sequenceLock.Unlock()
+			p.pl.Plog.Printf("S%dN%d get sequenceLock unlocked...\n", p.ShardID, p.NodeID)
+		}
 	}
+
 }
 
 // this func is only invoked by the main node,
@@ -455,9 +500,11 @@ func (p *PbftConsensusNode) handlePlanout(content []byte) {
 	}
 	// 此处创建通知消息
 	p.pl.Plog.Printf("分片%d准备创建迁移计划通知消息\n", p.ShardID)
+
 	for _, val := range planout.PlanOuts.Plans {
 		p.CreateTxInitInfo(int(p.ShardID), int(val.ReceiverShardID), val.AccountAddr)
 	}
+
 	p.pl.Plog.Printf("分片%d已经创建迁移计划通知消息完成\n\n\n", p.ShardID)
 }
 
@@ -468,10 +515,11 @@ func (p *PbftConsensusNode) handleTxinitCreateinfo(content []byte) {
 	if err != nil {
 		log.Panic()
 	}
-	p.pl.Plog.Printf("目的分片%d已经收到了迁移计划通知消息，这里准备创建替身账户喵~~\n", p.ShardID)
-	p.pl.Plog.Printf("输出一下迁移计划通知消息喵~\n")
-	p.pl.Plog.Printf("TransientTxAddr: %s, Nowtime: %s, SendersharedID: %d\n", createtxinitinfo.TransientTxAddr, createtxinitinfo.Nowtime, createtxinitinfo.SendershardID)
+	// p.pl.Plog.Printf("目的分片%d已经收到了迁移计划通知消息，这里准备创建替身账户喵~~\n", p.ShardID)
+	// p.pl.Plog.Printf("输出一下迁移计划通知消息喵~\n")
+	// p.pl.Plog.Printf("TransientTxAddr: %s, Nowtime: %s, SendersharedID: %d\n", createtxinitinfo.TransientTxAddr, createtxinitinfo.Nowtime, createtxinitinfo.SendershardID)
 	// createtxinitinfo.
+	p.pl.Plog.Print("创建消息已经放入对应分片监听池子, 接下来准备进行账户添加操作\n\n")
 	p.notifyPool = append(p.notifyPool, *createtxinitinfo)
 	/*
 		p.CurChain.Update_PartitionMap(createtxinitinfo.TransientTxAddr, p.ShardID)
@@ -482,6 +530,8 @@ func (p *PbftConsensusNode) handleTxinitCreateinfo(content []byte) {
 		p.pl.Plog.Print(p.CurChain.FetchAccounts([]string{createtxinitinfo.TransientTxAddr})[0])
 		p.pl.Plog.Print("状态检查结束\n\n")
 	*/
+	// 目的分片收到通知，立刻告知所有分片进行添加账户操作
+	p.Informallshardcreatetransientaccount()
 }
 
 func (p *PbftConsensusNode) handleTxRedirect(content []byte) {
@@ -492,6 +542,7 @@ func (p *PbftConsensusNode) handleTxRedirect(content []byte) {
 	}
 
 	// 遍历现有的交易池
+
 	for acaddr, nowacshardid := range p.CurChain.DirtyMap {
 		p.pl.Plog.Printf("当前账户%s的分片ID是%d\n", acaddr, nowacshardid)
 		// p.CurChain.Update_PartitionMap(acaddr, p.ShardID)
@@ -510,6 +561,12 @@ func (p *PbftConsensusNode) handleTxRedirect(content []byte) {
 				TempPool.Isnil = false
 				// 此处添加交易路由重定向结束
 			}
+			if txs.Recipient == acaddr && txs.Relayed {
+				TempPool.Temppool.AddTx2Pool(txs)
+				p.CurChain.Txpool.DeleteTx(txs)
+				TempPool.ReceiveTxShardID = nowacshardid
+				TempPool.Isnil = false
+			}
 		}
 		// 此处添加交易路由重定向结束
 		// 发送交易路由重定向消息
@@ -525,6 +582,7 @@ func (p *PbftConsensusNode) handleTxRedirect(content []byte) {
 		mergemsg := message.MergeMessage(message.CTxRedirectout, btxredirect)
 		// 发送给所有分片
 		networks.TcpDial(mergemsg, p.ip_nodeTable[nowacshardid][0])
+
 	}
 
 	// curView := p.view.Load()
@@ -532,6 +590,8 @@ func (p *PbftConsensusNode) handleTxRedirect(content []byte) {
 	defer p.pbftLock.Unlock()
 
 	p.pl.Plog.Printf("当前分片%d已经收到了txredirect的消息，交易已经全部入库，现在重置阶段ovo\n\n", p.ShardID)
+	params.ConsensusRoundForEvrShard[p.ShardID]++
+	p.pl.Plog.Printf("这里改变共识轮的大小, 当前阶段结束后分片的共识轮是: %d\n\n\n", params.ConsensusRoundForEvrShard[p.ShardID])
 	p.pbftStage.Store(1)
 	if p.NodeID == uint64(p.view.Load()) {
 		p.sequenceLock.Unlock()

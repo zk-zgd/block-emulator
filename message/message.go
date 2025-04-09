@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var prefixMSGtypeLen = 30
+var prefixMSGtypeLen = 100
 
 type MessageType string
 type RequestType string
@@ -38,6 +38,12 @@ const (
 	CTxRedirect MessageType = "Txredirect"
 	// 发送给其他分片的交易的消息头
 	CTxRedirectout MessageType = "TxRedirectout"
+
+	// 发送数据给主分片
+	CDataSet2Mshard MessageType = "CDataSet2Mshard"
+
+	// 发送块哈希给supervisor节点的消息头
+	CBlockHash2Supervisor MessageType = "BlockHash2Supervisor"
 )
 
 var (
@@ -144,6 +150,11 @@ type BlockInfoMsg struct {
 	// for broker
 	Broker1Txs []*core.Transaction // cross transactions at first time by broker
 	Broker2Txs []*core.Transaction // cross transactions at second time by broker
+
+	// 共识轮
+	ConsensusRound int
+	// 当前消息的分片号, 用于查询当前分片的数据库所用
+	NowShardID uint64
 }
 
 type SeqIDinfo struct {
@@ -161,6 +172,8 @@ func MergeMessage(msgType MessageType, content []byte) []byte {
 }
 
 func SplitMessage(message []byte) (MessageType, []byte) {
+	// fmt.Println(message[prefixMSGtypeLen:])
+
 	msgTypeBytes := message[:prefixMSGtypeLen]
 	msgType_pruned := make([]byte, 0)
 	for _, v := range msgTypeBytes {

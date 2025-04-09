@@ -3,6 +3,7 @@ package main
 import (
 	"blockEmulator/build"
 	"blockEmulator/params"
+	"blockEmulator/utils"
 	"fmt"
 	"log"
 
@@ -44,6 +45,13 @@ func main() {
 	params.ShardNum = shardNum
 	params.NodesInShard = nodeNum
 
+	
+
+
+	//fmt.Println(query.QueryBlock(3, 0, 1).Header.Hash())
+	//fmt.Println(query.QueryBlock(3, 0, 2).Header.ParentBlockHash)
+
+	fmt.Print(utils.Addr2Shard("0x91337a300e0361bddb2e377dd4e88ccb7796663d"))
 	if isGen {
 		if isGenerateForExeFile {
 			// Generate the corresponding .bat file or .sh file based on the detected operating system.

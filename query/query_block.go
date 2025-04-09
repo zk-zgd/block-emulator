@@ -5,6 +5,7 @@ import (
 	"blockEmulator/params"
 	"blockEmulator/storage"
 	"fmt"
+	"log"
 
 	"github.com/boltdb/bolt"
 )
@@ -40,6 +41,33 @@ func QueryBlocks(ShardID, NodeID uint64) []*core.Block {
 	return blocks
 }
 
+// 现在的读取操作：
+func QueryBlock2(ShardID, NodeID, Number uint64) *core.Block {
+	dbfp := params.DatabaseWrite_path + fmt.Sprintf("chainDB/S%d_N%d", ShardID, NodeID)
+	db := initStorage(dbfp, ShardID, NodeID).DataBase
+	defer db.Close()
+
+	block := new(core.Block)
+	err := db.View(func(tx *bolt.Tx) error {
+		bbucket := tx.Bucket([]byte("block"))
+		if bbucket == nil {
+			return fmt.Errorf("未找到 block bucket")
+		}
+		v := bbucket.Get([]byte(fmt.Sprintf("%d", Number)))
+		if v == nil {
+			return fmt.Errorf("未找到区块编号 %d", Number)
+		}
+		block = core.DecodeB(v)
+		return nil
+	})
+	if err != nil {
+		log.Printf("查询区块失败: %v", err)
+		return nil
+	}
+	return block
+}
+
+// 原来的读取操作
 func QueryBlock(ShardID, NodeID, Number uint64) *core.Block {
 	dbfp := params.DatabaseWrite_path + fmt.Sprintf("chainDB/S%d_N%d", ShardID, NodeID)
 	db := initStorage(dbfp, ShardID, NodeID).DataBase

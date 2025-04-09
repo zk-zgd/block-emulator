@@ -108,12 +108,91 @@ func (d *Supervisor) handleBlockInfos(content []byte) {
 
 	d.comMod.HandleBlockInfo(bim)
 
+	// 在这里处理数据库读取操作
+	/*
+		if bim.ConsensusRound > 0 && bim.ConsensusRound%5 == 0 {
+			measure.ReadBoltDB(int(bim.NowShardID), 0)
+		}
+	*/
+
+	// 在这里处理数据库读取操作--采用getblock的办法
+
 	// measure update
+
 	for _, measureMod := range d.testMeasureMods {
 		measureMod.UpdateMeasureRecord(bim)
 	}
+
 	// add codes here ...
 }
+
+// 进行消息的读取:
+/*
+func (d *Supervisor) handleBlock2Supervisor(content []byte) {
+	// 读取消息内容
+	msg2supervisor := new(message.Msg2Supervisor)
+	err := json.Unmarshal(content, msg2supervisor)
+	if err != nil {
+		log.Panic()
+	}
+	// 创建存储目录
+	dir := "ReadBlock"
+	err = os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		log.Fatalf("无法创建目录: %v", err)
+	}
+
+	// 构建 CSV 文件路径
+	fileName := fmt.Sprintf("%s/shard_%d_node_%d_blocks.csv", dir, msg2supervisor.ShardID, msg2supervisor.NodeID)
+
+	// 检查文件是否存在
+	var file *os.File
+	if _, err := os.Stat(fileName); os.IsNotExist(err) {
+		// 文件不存在，创建新文件
+		file, err = os.Create(fileName)
+		if err != nil {
+			log.Fatalf("无法创建CSV文件: %v", err)
+		}
+		// 创建 CSV 写入器并写入表头
+		writer := csv.NewWriter(file)
+		header := []string{"BlockNumber", "BlockHash", "ParentHash", "TxHash", "Sender", "Recipient", "Value"}
+		if err := writer.Write(header); err != nil {
+			log.Fatalf("无法写入CSV表头: %v", err)
+		}
+		writer.Flush()
+	} else {
+		// 文件存在，追加模式打开
+		file, err = os.OpenFile(fileName, os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Fatalf("无法打开CSV文件: %v", err)
+		}
+	}
+	defer file.Close()
+
+	// 创建CSV写入器用于追加数据
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	for _, block := range msg2supervisor.Block {
+		for _, tx := range block.Body {
+			record := []string{
+				strconv.FormatUint(block.Header.Number, 10),
+				fmt.Sprintf("%x", block.Hash),
+				fmt.Sprintf("%x", block.Header.ParentBlockHash),
+				fmt.Sprintf("%x", tx.TxHash),
+				tx.Sender,
+				tx.Recipient,
+				tx.Value.String(),
+			}
+			if err := writer.Write(record); err != nil {
+				log.Fatalf("无法写入交易记录到CSV: %v", err)
+			}
+		}
+	}
+	writer.Flush()
+
+	d.sl.Slog.Printf("Supervisor: received block from shard %d, node %d\n", msg2supervisor.ShardID, msg2supervisor.NodeID)
+}*/
 
 // read transactions from dataFile. When the number of data is enough,
 // the Supervisor will do re-partition and send partitionMSG and txs to leaders.
@@ -146,6 +225,8 @@ func (d *Supervisor) handleMessage(msg []byte) {
 	case message.CBlockInfo:
 		d.handleBlockInfos(content)
 		// add codes for more functionality
+	// case message.CBlockHash2Supervisor:
+	// d.handleBlock2Supervisor(content)
 	default:
 		d.comMod.HandleOtherMessage(msg)
 		for _, mm := range d.testMeasureMods {

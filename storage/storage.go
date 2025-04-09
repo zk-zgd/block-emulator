@@ -72,12 +72,12 @@ func (s *Storage) UpdateNewestBlock(newestbhash []byte) {
 		// the bucket has the only key "OnlyNewestBlock"
 		err := nbhBucket.Put([]byte("OnlyNewestBlock"), newestbhash)
 		if err != nil {
-			log.Panic()
+			log.Panic(err)
 		}
 		return nil
 	})
 	if err != nil {
-		log.Panic()
+		log.Panic(err)
 	}
 	fmt.Println("The newest block is updated")
 }
@@ -142,6 +142,8 @@ func (s *Storage) GetBlock(bhash []byte) (*core.Block, error) {
 		res = core.DecodeB(b_encoded)
 		return nil
 	})
+	log.Print("找到块了，输出一下: \n\n\n")
+	log.Print(res)
 	return res, err
 }
 

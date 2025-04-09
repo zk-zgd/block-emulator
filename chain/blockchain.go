@@ -34,6 +34,8 @@ type BlockChain struct {
 	DirtyMap     map[string]uint64   // 存放修改的账户地址部分
 	dmlock       sync.RWMutex
 	pmlock       sync.RWMutex
+
+	
 }
 
 // Get the transaction root, this root can be used to check the transactions
@@ -239,15 +241,17 @@ func (bc *BlockChain) GenerateBlock(miner int32) *core.Block {
 	}
 
 	// 更新本分片的账户路由
-	for _, txx := range txs {
-		// fmt.Print("这里是更新本分片map中没有的账户的地方.\n")
-		if bc.Get_PartitionMap(txx.Sender) == uint64(utils.Addr2Shard(txx.Sender)) {
-			bc.Update_PartitionMap(txx.Sender, uint64(utils.Addr2Shard(txx.Sender)))
+	/*
+		for _, txx := range txs {
+			// fmt.Print("这里是更新本分片map中没有的账户的地方.\n")
+			if bc.Get_PartitionMap(txx.Sender) == uint64(utils.Addr2Shard(txx.Sender)) {
+				bc.Update_PartitionMap(txx.Sender, uint64(utils.Addr2Shard(txx.Sender)))
+			}
+			if bc.Get_PartitionMap(txx.Recipient) == uint64(utils.Addr2Shard(txx.Recipient)) {
+				bc.Update_PartitionMap(txx.Recipient, uint64(utils.Addr2Shard(txx.Recipient)))
+			}
 		}
-		if bc.Get_PartitionMap(txx.Recipient) == uint64(utils.Addr2Shard(txx.Recipient)) {
-			bc.Update_PartitionMap(txx.Recipient, uint64(utils.Addr2Shard(txx.Recipient)))
-		}
-	}
+	*/
 
 	if bc.ChainConfig.ShardID == 0 {
 		for _, tx := range txs {
@@ -383,13 +387,28 @@ func (bc *BlockChain) AddBlock(b *core.Block) {
 	}
 	bc.CurrentBlock = b
 	// 此处修改Partitionmap
-	for _, txinit := range b.TxinitBody {
-		fmt.Printf("这里修改每个分片的迁移账户路由，当前分片为%d\n\n\n", bc.ChainConfig.ShardID)
-		bc.Update_PartitionMap(txinit.TransientAccountAddr, txinit.DestinationshardID)
-		bc.DirtyMap[txinit.TransientAccountAddr] = txinit.DestinationshardID
-	}
-
+	/*
+		for _, txinit := range b.TxinitBody {
+			if utils.Addr2Shard(txinit.Sender) != int(bc.ChainConfig.ShardID) {
+				fmt.Print("\n\n\n当前迁移账户的分片号是: ")
+				fmt.Println(utils.Addr2Shard(txinit.Sender))
+				fmt.Printf("这里修改每个分片的迁移账户路由1，当前分片为%d\n\n\n", bc.ChainConfig.ShardID)
+				bc.Update_PartitionMap(txinit.TransientAccountAddr, txinit.DestinationshardID)
+				bc.DirtyMap[txinit.TransientAccountAddr] = txinit.DestinationshardID
+			} else {
+				fmt.Printf("这里修改每个分片的迁移账户路由2，当前分片为%d\n\n\n", bc.ChainConfig.ShardID)
+				bc.DirtyMap[txinit.TransientAccountAddr] = txinit.DestinationshardID
+			}
+		}
+	*/
 	bc.Storage.AddBlock(b)
+	/*
+		if bc.ChainConfig.ShardID == 3 {
+			block, err := bc.Storage.GetBlock(b.Header.ParentBlockHash)
+			log.Println(block.Header.Number)
+			log.Print(err)
+		}
+	*/
 }
 
 // new a blockchain.

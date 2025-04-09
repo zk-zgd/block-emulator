@@ -6,7 +6,6 @@ import (
 	"blockEmulator/chain"
 	"blockEmulator/consensus_shard/pbft_all/dataSupport"
 	"blockEmulator/consensus_shard/pbft_all/pbft_log"
-	"blockEmulator/core"
 	"blockEmulator/message"
 	"blockEmulator/networks"
 	"blockEmulator/params"
@@ -87,8 +86,6 @@ type PbftConsensusNode struct {
 	notifyPool []message.TxinitCreate
 	// 新增的通知池锁
 	notifyPoolLock sync.Mutex
-	// 新增的块暂时更新
-	newblockTemp *core.Block
 }
 
 // generate a pbft consensus for a node
@@ -170,11 +167,14 @@ func NewPbftNode(shardID, nodeID uint64, pcc *params.ChainConfig, messageHandleT
 			pbftNode: p,
 		}
 	default:
+		tdm1 := dataSupport.NewTransientSupport()
 		p.ihm = &RawRelayPbftExtraHandleMod{
 			pbftNode: p,
+			tdm:      tdm1,
 		}
 		p.ohm = &RawRelayOutsideModule{
 			pbftNode: p,
+			tdm:      tdm1,
 		}
 	}
 
@@ -187,6 +187,9 @@ func NewPbftNode(shardID, nodeID uint64, pcc *params.ChainConfig, messageHandleT
 
 // handle the raw message, send it to corresponded interfaces
 func (p *PbftConsensusNode) handleMessage(msg []byte) {
+	//p.pl.Plog.Println("这里出错")
+	//p.pl.Plog.Println(message.SplitMessage(msg))
+	//p.pl.Plog.Println("这里出错")
 	msgType, content := message.SplitMessage(msg)
 	switch msgType {
 	// pbft inside message type
@@ -217,9 +220,10 @@ func (p *PbftConsensusNode) handleMessage(msg []byte) {
 	case message.CTxPlanOut:
 		p.handlePlanout(content)
 	// 交易重定向
-	case message.CTxRedirect:
-		go p.handleTxRedirect(content)
-
+	/*
+		case message.CTxRedirect:
+			go p.handleTxRedirect(content)
+	*/
 	// handle the message from outside
 
 	default:
